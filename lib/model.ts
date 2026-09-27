@@ -1,0 +1,29 @@
+export type Project = {id:string; name:string; code:string; client:string; manager:string; phone:string; location:string; category:string; status:string; contract:number; invoiceTarget:number; invoiceDue:string; completedAt:string; createdAt:string; note:string};
+export type Invoice = {id:string; projectId:string; number:string; code:string; seller:string; buyer:string; amount:number; tax:number; date:string; category:string; status:string; fileId:string; createdAt:string};
+export type Receivable = {id:string; projectId:string; type:string; amount:number; received:number; due:string; reminderDays:number; contact:string; note:string; createdAt:string};
+export type Followup = {id:string; projectId:string; receivableId:string; date:string; method:string; content:string; nextDate:string; amount:number; createdAt:string};
+export type DocumentRecord = {id:string; projectId:string; name:string; category:string; size:number; mime:string; key:string; createdAt:string};
+export type Share = {id:string; projectId:string; label:string; expires:string; createdAt:string};
+export type Settings = {company:string; reminderDays:number; invoiceThreshold:number; wecomEnabled:boolean;emailEnabled:boolean;reminderEmail:string};
+export type Data = {projects:Project[]; invoices:Invoice[]; receivables:Receivable[]; followups:Followup[]; documents:DocumentRecord[]; shares:Share[]; estimates:Estimate[]; settings:Settings; services?:{ocr:boolean; wecom:boolean; email?:boolean; scheduled:boolean; lastRun?:string}; authenticated?:boolean};
+export const emptyData:Data={projects:[],invoices:[],receivables:[],followups:[],documents:[],shares:[],estimates:[],settings:{company:'我的工程',reminderDays:30,invoiceThreshold:0,wecomEnabled:false,emailEnabled:false,reminderEmail:''}};
+export const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+export const dayDiff=(day:string,base=today())=>Math.round((Date.parse(day+'T00:00:00+08:00')-Date.parse(base+'T00:00:00+08:00'))/86400000);
+export const offsetDate=(days:number)=>{const d=new Date(today()+'T00:00:00+08:00');d.setUTCDate(d.getUTCDate()+days);return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(d)};
+export const yuan=(c:number)=>new Intl.NumberFormat('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}).format(c/100);
+export const wan=(c:number)=>new Intl.NumberFormat('zh-CN',{maximumFractionDigits:2}).format(c/1000000);
+export const remaining=(r:Receivable)=>Math.max(0,r.amount-r.received);
+export const invoiceSum=(d:Data,p:string)=>d.invoices.filter(i=>i.projectId===p&&i.status==='已核对').reduce((s,i)=>s+i.amount,0);
+export const gap=(d:Data,p:Project)=>Math.max(0,p.invoiceTarget-invoiceSum(d,p.id));
+export const receiptStatus=(r:Receivable)=>remaining(r)===0?'已收齐':dayDiff(r.due)<0?'已逾期':dayDiff(r.due)<=r.reminderDays?'即将到期':'未到期';
+export const dueLabel=(r:Receivable)=>remaining(r)===0?'已全部收回':dayDiff(r.due)<0?`逾期 ${-dayDiff(r.due)} 天`:dayDiff(r.due)===0?'今天到期':`${dayDiff(r.due)} 天后到期`;
+export function demoData():Data{
+ const names=['滨江大道道路改造工程','城南片区雨污分流工程','新城公园景观提升工程','东湖路照明改造工程','高新区市政道路一期','北站广场配套工程'];
+ const projects=names.map((name,i)=>({id:'demo-p'+i,name,code:'SZ-202'+(i<3?'4':'5')+'-00'+(i+1),client:['滨江城市建设发展有限公司','城南建设投资有限公司','新城园林建设有限公司','东湖市政建设有限公司','高新建设发展有限公司','北站综合开发有限公司'][i],manager:['张建国','李明','王磊'][i%3],phone:'',location:['滨江区','城南区','新城区','东湖区','高新区','北站片区'][i],category:['道路工程','排水工程','园林工程','照明工程','道路工程','配套工程'][i],status:['质保期','施工中','质保期','已竣工','施工中','已归档'][i],contract:[860,520,360,185,1200,280][i]*1000000,invoiceTarget:[180,120,80,45,160,0][i]*1000000,invoiceDue:offsetDate([-5,15,12,45,60,0][i]),completedAt:i===0?offsetDate(-730):i===2?offsetDate(-350):'',createdAt:offsetDate(-300+i*10),note:''}));
+ const amounts=[150,102,80,38,140];
+ const invoices=amounts.map((v,i)=>({id:'demo-i'+i,projectId:'demo-p'+i,number:'2600000000000000100'+i,code:'',seller:['恒通建材有限公司','城南管业有限公司','绿源园林工程有限公司','华光照明有限公司','华兴路桥材料有限公司'][i],buyer:'示例市政工程有限公司',amount:v*1000000,tax:Math.round(v*1000000*9/109),date:offsetDate(-i*3-2),category:['材料费','材料费','分包费','材料费','材料费'][i],status:'已核对',fileId:'',createdAt:offsetDate(-i*3-2)}));
+ const receivables=[{type:'质保金',p:0,amount:43,due:-12,received:0},{type:'尾款',p:3,amount:27.5,due:3,received:0},{type:'质保金',p:2,amount:18,due:18,received:0},{type:'尾款',p:0,amount:86,due:46,received:26},{type:'质保金',p:3,amount:9.25,due:110,received:0},{type:'质保金',p:1,amount:26,due:398,received:0},{type:'尾款',p:2,amount:36,due:72,received:0},{type:'质保金',p:5,amount:14,due:-30,received:14},{type:'尾款',p:4,amount:120,due:145,received:0}].map((r,i)=>({id:'demo-r'+i,projectId:'demo-p'+r.p,type:r.type,amount:Math.round(r.amount*1000000),received:Math.round(r.received*1000000),due:offsetDate(r.due),reminderDays:30,contact:['陈经理','刘主任','赵经理'][i%3],note:'按合同约定节点办理付款',createdAt:offsetDate(-90)}));
+ const followups=[{id:'demo-f0',projectId:'demo-p0',receivableId:'demo-r0',date:offsetDate(-1),method:'电话',content:'已联系甲方财务，付款申请正在审批，约定下周再次跟进。',nextDate:offsetDate(3),amount:0,createdAt:new Date().toISOString()},{id:'demo-f1',projectId:'demo-p3',receivableId:'demo-r1',date:offsetDate(-2),method:'微信',content:'已提交结算资料，等待对方确认付款时间。',nextDate:offsetDate(1),amount:0,createdAt:offsetDate(-2)},{id:'demo-f2',projectId:'demo-p0',receivableId:'demo-r3',date:offsetDate(-5),method:'收款',content:'收到第一笔尾款。',nextDate:'',amount:26000000,createdAt:offsetDate(-5)}];
+ return {...emptyData,projects,invoices,receivables,followups,settings:{...emptyData.settings,company:'华辰市政 · 示例空间'}};
+}
+export type Estimate = {id:string; projectId:string; name:string; input:import('./calculator').EstimateInput; result:ReturnType<typeof import('./calculator').calculateEstimate>; createdAt:string};
