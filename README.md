@@ -5,7 +5,7 @@
 本仓库包含完整前端源码和已经打包的单文件网页。不需要购买服务器、配置数据库、注册企业账号或填写 API 密钥。
 
 - **项目仓库：** https://github.com/FuzzyLogic112/zhuzhang
-- **网页地址：** https://fuzzylogic112.github.io/zhuzhang/ （需完成下方 GitHub Pages 设置）
+- **网页地址：** https://fuzzylogic112.github.io/zhuzhang/
 - **免安装文件：** [`docs/index.html`](docs/index.html)，下载后用电脑 Edge 或 Chrome 普通窗口打开。浏览器对本地文件的存储支持可能不同，请先试建项目并关闭后重开确认。
 
 ## 能做什么
@@ -49,9 +49,9 @@
 仓库已包含可直接发布的 `docs/index.html` 和 `docs/.nojekyll`，无需安装依赖来发布。
 
 1. 打开仓库的 **Settings → Pages**。
-2. **Source** 选择 **Deploy from a branch**。
-3. **Branch** 选择 `main`，文件夹选择 `/docs`，点击 **Save**。
-4. 等待 GitHub 完成部署，在该页面点击 **Visit site**。
+2. **Source** 选择 **GitHub Actions**。
+3. 仓库已包含 `.github/workflows/pages.yml`，推送到 `main` 时会自动发布 `docs`；也可以在 Actions 中选择 Publish Zhuzhang，点击 Run workflow。
+4. 等待工作流成功，在 Pages 设置页面点击 **Visit site**。
 
 官方配置说明：https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
 
