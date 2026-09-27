@@ -1,0 +1,60 @@
+{
+  "name": "zhuzhang-desktop",
+  "productName": "筑账",
+  "version": "1.1.0",
+  "description": "工程资料、发票、质保金和尾款本地管理工具",
+  "author": "FuzzyLogic112",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "io.github.fuzzylogic112.zhuzhang",
+    "productName": "筑账",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "web/index.html",
+      "icon.png",
+      "package.json"
+    ],
+    "artifactName": "zhuzhang-${version}-${os}-${arch}.${ext}",
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "icon.png",
+      "category": "public.app-category.business",
+      "identity": "-"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "icon.png",
+      "category": "Office",
+      "maintainer": "FuzzyLogic112 <136941028+FuzzyLogic112@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+name: Publish signed Android installer
+on:
+  push:
+    branches: [main]
+    paths: ['installers/*.apk']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: installer-release-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -f installers/zhuzhang-1.1.0-android.apk
+          cd installers
+          sha256sum *.apk > SHA256SUMS-android.txt
+          cd ..
+          gh release view v1.1.0 >/dev/null 2>&1 || gh release create v1.1.0 --target "$GITHUB_SHA" --title "筑账 1.1.0 · 多端预览版" --prerelease --notes-file INSTALL.md
+          gh release upload v1.1.0 installers/*.apk installers/SHA256SUMS-android.txt --clobber

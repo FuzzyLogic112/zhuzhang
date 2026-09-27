@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {indexedDB} from 'fake-indexeddb';
 import fs from 'node:fs';
-import {localApi,getData,snapshot,getFile,exportBackup,prepareRestore,restoreBackup,readBackupZip,exportProject,calendarText,validateBackup,defaultEstimate,today} from '../test-build/api.js';
+import {saveNative,localApi,getData,snapshot,getFile,exportBackup,prepareRestore,restoreBackup,readBackupZip,exportProject,calendarText,validateBackup,defaultEstimate,today} from '../test-build/api.js';
 globalThis.indexedDB=indexedDB;globalThis.window=new EventTarget();
 const downloads=[];globalThis.document={createElement(){return{click(){downloads.at(-1).name=this.download}}}};URL.createObjectURL=blob=>{downloads.push({blob});return'blob:test-download'};URL.revokeObjectURL=()=>{};
 const later=globalThis.setTimeout;globalThis.setTimeout=(...args)=>{const t=later(...args);t.unref();return t};
@@ -22,4 +22,14 @@ await check('restore replaces whole book and original files',async()=>{await loc
 await check('project share contains one project and safe HTML',async()=>{await localApi('projects',{...project,name:'绝不能泄露的另一个工程'});await localApi('projects/'+p.id,{...project,name:'道路<script>alert(1)</script>'},'PATCH');await exportProject(p.id);const shared=readBackupZip(await downloads.at(-1).blob.arrayBuffer());const html=new TextDecoder().decode(shared.get('打开查看工程.html'));assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(!html.includes('绝不能泄露'));assert.ok([...shared.keys()].some(k=>k.endsWith('验收资料.txt')))});
 await check('calendar exports due date and both alarms',async()=>{const cal=calendarText(await getData());assert.equal(cal.count,1);assert.ok(cal.text.includes('DTSTART;VALUE=DATE:20300927'));assert.ok(cal.text.includes('DTEND;VALUE=DATE:20300928'));assert.ok(cal.text.includes('TRIGGER:-P30D'));assert.ok(cal.text.includes('TRIGGER:-P1D'));assert.ok(cal.text.includes('待收 ¥100.00'));for(const line of cal.text.split('\r\n'))assert.ok(Buffer.byteLength(line)<=75)});
 await check('no remotely enabled notifications in offline settings',async()=>{await localApi('settings',{company:'测试账本',reminderDays:7,invoiceThreshold:0,wecomEnabled:true,emailEnabled:true,reminderEmail:'qa@example.test'});const d=await getData();assert.equal(d.settings.emailEnabled,false);assert.equal(d.settings.wecomEnabled,false)});
+
+await check('Android binary export is chunked and waits for native confirmation',async()=>{
+ const payload=new Uint8Array(430001);for(let i=0;i<payload.length;i++)payload[i]=i%256;
+ const chunks=[];let aborted=false;
+ window.ZhuzhangNative={begin(name,mime,size){assert.equal(size,payload.length);return 'native-test'},write(id,base64){assert.equal(id,'native-test');assert.ok(base64.length<=262144);chunks.push(Buffer.from(base64,'base64'));return true},finish(id){queueMicrotask(()=>window.dispatchEvent(new CustomEvent('zhuzhang-native-save',{detail:{id,error:''}})));return true},abort(){aborted=true}};
+ assert.equal(await saveNative(new Blob([payload]),'资料.zip'),true);assert.equal(chunks.length,3);assert.deepEqual(Buffer.concat(chunks),Buffer.from(payload));assert.equal(aborted,false);
+ window.ZhuzhangNative.begin=()=>'native-test';window.ZhuzhangNative.write=()=>false;await assert.rejects(saveNative(new Blob(['data']),'资料.zip'));assert.equal(aborted,true);
+ delete window.ZhuzhangNative;
+});
+
 fs.writeFileSync('test-build/verification.json',JSON.stringify({date:today(),checks:passed,result:'passed',environment:'Node.js with fake-indexeddb'},null,2));console.log('TOTAL '+passed+' integration checks passed.');

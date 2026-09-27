@@ -1,5 +1,6 @@
 import {emptyData,type Data} from '../lib/model';
 import {applyMutation} from './mutations';
+import {saveNative} from './native-export';
 const STORES=['state','files'];const LIMIT=200*1024*1024;
 let opening:Promise<IDBDatabase>|undefined;
 function db(){if(!opening)opening=new Promise((resolve,reject)=>{try{const r=indexedDB.open('zhuzhang-offline-v1',1);r.onupgradeneeded=()=>{for(const name of STORES)if(!r.result.objectStoreNames.contains(name))r.result.createObjectStore(name)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(Error('此浏览器无法保存本地账本，请用电脑 Edge 或 Chrome 普通窗口打开。'))}catch{reject(Error('本地存储不可用，请用电脑 Edge 或 Chrome 普通窗口打开。'))}});return opening}
@@ -18,5 +19,5 @@ export async function localApi(path:string,body?:any,method='POST'){
  }catch(e:any){if(e?.issues)throw Error(e.issues.map((x:any)=>x.message).join('；'));throw e}
 }
 export async function replaceBook(data:Data,files:Map<string,Blob>){if(data.documents.reduce((s,f)=>s+f.size,0)>LIMIT)throw Error('备份原件超过离线版 200MB 上限');return change((d,t)=>{for(const key of Object.keys(d))delete(d as any)[key];Object.assign(d,data);const store=t.objectStore('files');store.clear();for(const doc of data.documents){const file=files.get(doc.id);if(!file||file.size!==doc.size)throw Error('备份中的资料原件不完整');store.put(file,doc.id)}return true})}
-export function saveBlob(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000)}
-export async function downloadFile(id:string){const d=await getData(),doc=d.documents.find(f=>f.id===id);if(!doc)throw Error('资料不存在');saveBlob(await getFile(id),doc.name)}
+export async function saveBlob(blob:Blob,name:string){if(await saveNative(blob,name))return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000)}
+export async function downloadFile(id:string){const d=await getData(),doc=d.documents.find(f=>f.id===id);if(!doc)throw Error('资料不存在');await saveBlob(await getFile(id),doc.name)}

@@ -1,0 +1,107 @@
+name: Build installers
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'android/**'
+      - 'offline/**'
+      - 'app/**'
+      - 'lib/**'
+      - 'package*.json'
+      - 'scripts/prepare-apps.mjs'
+      - '.github/workflows/installers.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win --x64
+            name: windows-x64
+          - os: ubuntu-24.04
+            target: --linux --x64
+            name: linux-x64
+          - os: macos-latest
+            target: --mac --arm64
+            name: mac-arm64
+          - os: macos-latest
+            target: --mac --x64
+            name: mac-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:apps
+      - run: npm ci
+        working-directory: desktop
+      - run: npm run dist -- ${{ matrix.target }}
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.AppImage
+            desktop/release/*.deb
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - run: npm ci && npm run build:apps
+      - run: gradle --no-daemon :app:assembleRelease :app:lintRelease
+        working-directory: android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-unsigned-for-private-signing
+          if-no-files-found: error
+          path: android/app/build/outputs/apk/release/*-unsigned.apk
+  publish:
+    needs: desktop
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: installer-release-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          path: installers-output
+          merge-multiple: true
+      - name: Publish preview installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd installers-output
+          sha256sum * > SHA256SUMS-desktop.txt
+          cd ..
+          gh release view v1.1.0 >/dev/null 2>&1 || gh release create v1.1.0 --target "$GITHUB_SHA" --title "筑账 1.1.0 · 多端预览版" --prerelease --notes-file INSTALL.md
+          gh release upload v1.1.0 installers-output/* --clobber
