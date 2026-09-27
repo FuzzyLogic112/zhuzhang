@@ -18,3 +18,5 @@ android/local.properties
 *.keystore
 *.p12
 *.pem
+
+*.apk.idsig

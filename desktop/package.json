@@ -1,7 +1,7 @@
 {
   "name": "zhuzhang-desktop",
   "productName": "筑账",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "工程资料、发票、质保金和尾款本地管理工具",
   "author": "FuzzyLogic112",
   "private": true,

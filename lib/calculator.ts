@@ -14,5 +14,6 @@ export function calculateEstimate(p:EstimateInput){
  const material=Math.round(quantity*p.price*100),labor=Math.round(area*p.labor*100),machine=Math.round(area*p.machine*100),transport=Math.round(p.transport*100);
  const cost=material+labor+machine+transport,profit=Math.round(cost*p.markup/100),tax=Math.round((cost+profit)*p.tax/100),total=cost+profit+tax;
  if(!Number.isSafeInteger(total)||total>1e14)throw Error('计算结果过大，请检查单位与输入');
- return{area,volume,quantity,unit,material,labor,machine,transport,cost,profit,tax,total,perSquare:Math.round(total/area)};
+ const perSquare=Math.round(total/area);if(!Number.isSafeInteger(perSquare))throw Error('每平方米报价超出范围，请检查面积单位');
+ return{area,volume,quantity,unit,material,labor,machine,transport,cost,profit,tax,total,perSquare};
 }

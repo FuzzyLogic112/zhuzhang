@@ -14,4 +14,4 @@ export function zipStream(entries:ZipEntry[]){
  }
  const iterator=generate();return new ReadableStream<Uint8Array>({async pull(controller){try{const{done,value}=await iterator.next();if(done)controller.close();else controller.enqueue(value);}catch(e){controller.error(e)}},async cancel(){await iterator.return(undefined)}});
 }
-export function csv(rows:(string|number)[][]){return '\uFEFF'+rows.map(row=>row.map(v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}).join(',')).join('\r\n');}
+export function csv(rows:(string|number)[][]){return '\uFEFF'+rows.map(row=>row.map(v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s)||(typeof v==='string'&&/^(?:\d{16,}|0\d+)$/.test(s)))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}).join(',')).join('\r\n');}

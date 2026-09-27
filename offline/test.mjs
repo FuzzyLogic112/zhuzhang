@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {indexedDB} from 'fake-indexeddb';
 import fs from 'node:fs';
-import {saveNative,localApi,getData,snapshot,getFile,exportBackup,prepareRestore,restoreBackup,readBackupZip,exportProject,calendarText,validateBackup,defaultEstimate,today} from '../test-build/api.js';
+import {calculateEstimate,csv,saveBlob,saveNative,localApi,getData,snapshot,getFile,exportBackup,prepareRestore,restoreBackup,readBackupZip,exportProject,calendarText,validateBackup,defaultEstimate,today} from '../test-build/api.js';
 globalThis.indexedDB=indexedDB;globalThis.window=new EventTarget();
 const downloads=[];globalThis.document={createElement(){return{click(){downloads.at(-1).name=this.download}}}};URL.createObjectURL=blob=>{downloads.push({blob});return'blob:test-download'};URL.revokeObjectURL=()=>{};
 const later=globalThis.setTimeout;globalThis.setTimeout=(...args)=>{const t=later(...args);t.unref();return t};
@@ -32,4 +32,35 @@ await check('Android binary export is chunked and waits for native confirmation'
  delete window.ZhuzhangNative;
 });
 
+
+await check('invoice attachment and record commit atomically',async()=>{
+ const before=await snapshot();const record={...before.data.invoices[0]};
+ const form=new FormData();form.set('file',new File(['原件'],'票.pdf'));form.set('invoice',JSON.stringify(record));
+ await assert.rejects(localApi('invoice-with-file',form),/重复/);
+ const after=await snapshot();assert.equal(after.data.documents.length,before.data.documents.length);assert.equal(after.files.size,before.files.size);
+ record.number='20260927000000000111';form.set('invoice',JSON.stringify(record));const invoice=await localApi('invoice-with-file',form);
+ assert.equal(await(await getFile(invoice.fileId)).text(),'原件');assert.equal((await getData()).documents.find(x=>x.id===invoice.fileId).projectId,p.id);
+});
+await check('invalid invoice rolls back uploaded original',async()=>{
+ const before=await snapshot();const record={...before.data.invoices[0],number:'20260927000000000112',tax:999999999};
+ const form=new FormData();form.set('file',new File(['原件'],'票.pdf'));form.set('invoice',JSON.stringify(record));await assert.rejects(localApi('invoice-with-file',form));
+ assert.equal((await snapshot()).files.size,before.files.size);
+});
+await check('file name limit keeps upload and restore compatible',async()=>{
+ const form=new FormData();form.set('projectId',p.id);form.set('category','其他资料');form.set('file',new File(['x'],'a'.repeat(197)+'.txt'));await assert.rejects(localApi('upload',form),/文件名/);
+ form.set('file',new File(['x'],'a'.repeat(196)+'.txt'));await localApi('upload',form);await exportBackup();const backup=await prepareRestore(new File([downloads.at(-1).blob],'备份.zip'));assert.equal(backup.files.size,(await snapshot()).files.size);
+});
+await check('material quantities use correct centimetre and metre units',()=>{
+ const b={...defaultEstimate,area:100,thickness:10,loss:5};assert.equal(calculateEstimate(b).quantity,10.5);
+ assert.equal(calculateEstimate({...b,kind:'碎石垫层',thickness:20,density:1.5,factor:1,loss:0}).quantity,30);
+ assert.ok(Math.abs(calculateEstimate({...b,kind:'道路划线',length:100,width:15,consumption:1.5,loss:10}).quantity-24.75)<1e-9);
+ assert.throws(()=>calculateEstimate({...b,area:Number.MIN_VALUE}),/面积/);
+});
+await check('CSV preserves long identifiers and escapes formulas',()=>{
+ const content=csv([['20260927000000000123','00123','=SUM(A1)',100,'正常文字']]);assert.ok(content.includes(`"'20260927000000000123"`));assert.ok(content.includes(`"'00123"`));assert.ok(content.includes(`"'=SUM(A1)"`));assert.ok(content.includes('"100"'));
+});
+await check('native cancellation propagates without browser fallback',async()=>{
+ const before=downloads.length;window.ZhuzhangNative={begin(){return 'cancel-test'},write(){return true},finish(id){queueMicrotask(()=>window.dispatchEvent(new CustomEvent('zhuzhang-native-save',{detail:{id,error:'已取消保存'}})));return true},abort(){}};
+ await assert.rejects(saveBlob(new Blob(['data']),'总览.csv'),/取消/);assert.equal(downloads.length,before);delete window.ZhuzhangNative;
+});
 fs.writeFileSync('test-build/verification.json',JSON.stringify({date:today(),checks:passed,result:'passed',environment:'Node.js with fake-indexeddb'},null,2));console.log('TOTAL '+passed+' integration checks passed.');

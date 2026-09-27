@@ -18,9 +18,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          test -f installers/zhuzhang-1.1.0-android.apk
+          test -f installers/zhuzhang-1.1.1-android.apk
           cd installers
-          sha256sum *.apk > SHA256SUMS-android.txt
+          sha256sum zhuzhang-1.1.1-android.apk > SHA256SUMS-android.txt
           cd ..
-          gh release view v1.1.0 >/dev/null 2>&1 || gh release create v1.1.0 --target "$GITHUB_SHA" --title "筑账 1.1.0 · 多端预览版" --prerelease --notes-file INSTALL.md
-          gh release upload v1.1.0 installers/*.apk installers/SHA256SUMS-android.txt --clobber
+          gh release view v1.1.1 >/dev/null 2>&1 || gh release create v1.1.1 --target "$GITHUB_SHA" --title "筑账 1.1.1 · 多端预览版" --prerelease --notes-file INSTALL.md
+          gh release upload v1.1.1 installers/zhuzhang-1.1.1-android.apk installers/SHA256SUMS-android.txt --clobber

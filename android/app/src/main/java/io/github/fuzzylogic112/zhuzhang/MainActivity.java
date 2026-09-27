@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
                 if (chooser != null) chooser.onReceiveValue(null);
                 chooser = callback;
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
                 try { startActivityForResult(intent, OPEN_FILE); }
                 catch (Exception e) { chooser.onReceiveValue(null); chooser = null; Toast.makeText(MainActivity.this, "没有可用的文件选择器", Toast.LENGTH_LONG).show(); }
                 return true;
@@ -136,7 +137,15 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         Uri uri = result == RESULT_OK && data != null ? data.getData() : null;
-        if (request == OPEN_FILE && chooser != null) { chooser.onReceiveValue(uri == null ? null : new Uri[]{uri}); chooser = null; }
+        if (request == OPEN_FILE && chooser != null) {
+            Uri[] selected = uri == null ? null : new Uri[]{uri};
+            if (result == RESULT_OK && data != null && data.getClipData() != null) {
+                android.content.ClipData clips = data.getClipData();
+                selected = new Uri[clips.getItemCount()];
+                for (int i = 0; i < selected.length; i++) selected[i] = clips.getItemAt(i).getUri();
+            }
+            chooser.onReceiveValue(selected); chooser = null;
+        }
         if (request == SAVE_FILE) files.save(uri);
     }
     @Override public void onBackPressed() {

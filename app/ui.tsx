@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
-import {localApi} from '../offline/storage';
+import {toast} from 'sonner';
+import {localApi,saveBlob} from '../offline/storage';
 import {FolderOpen,Search} from 'lucide-react';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import {Empty,EmptyHeader,EmptyMedia,EmptyTitle,EmptyDescription,EmptyContent} from '@/components/ui/empty';
@@ -10,6 +11,6 @@ export function SearchBox({value,onChange,placeholder='搜索项目名称、编�
 export function EmptyBox({title='还没有记录',description='添加第一条记录，开始管理你的工程。',action,label='新建项目'}:{title?:string;description?:string;action?:()=>void;label?:string}){return <Empty className="empty-state"><EmptyHeader><EmptyMedia><FolderOpen size={38}/></EmptyMedia><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader>{action&&<EmptyContent><button className="btn primary" onClick={action}>{label}</button></EmptyContent>}</Empty>}
 export function Tag({children,color}:{children:React.ReactNode;color?:string}){const text=String(children);const c=color||(['已逾期','已作废'].includes(text)?'red':['即将到期','待核对','质保期'].includes(text)?'orange':['已收齐','已核对','已归档'].includes(text)?'green':text==='施工中'?'blue':'gray');return <span className={'tag '+c}>{children}</span>}
 export async function api(path:string,body?:unknown,method='POST'){return localApi(path,body,method)}
-export function download(name:string,content:string,type='text/plain;charset=utf-8'){const url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);}
+export function download(name:string,content:string,type='text/plain;charset=utf-8'){return saveBlob(new Blob([content],{type}),name).catch(e=>{toast.error(e instanceof Error?e.message:'导出失败，请重试')});}
 export const moneyInput=(n:number)=>String(n/100);
 export const toCents=(s:string)=>Math.round(Number(s)*100);

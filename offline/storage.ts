@@ -10,11 +10,27 @@ export async function getData(){const connection=await db();return new Promise<D
 export async function getFile(id:string){const connection=await db();return new Promise<Blob>((resolve,reject)=>{const t=connection.transaction('files'),r=t.objectStore('files').get(id);r.onsuccess=()=>r.result?resolve(r.result):reject(Error('原件不存在，请从完整备份恢复'));r.onerror=()=>reject(r.error)})}
 export async function snapshot(){const connection=await db();return new Promise<{data:Data;files:Map<string,Blob>}>((resolve,reject)=>{const t=connection.transaction(STORES),r=t.objectStore('state').get('book'),files=new Map<string,Blob>();let data:Data=fresh();r.onsuccess=()=>{data=r.result||fresh()};const cursor=t.objectStore('files').openCursor();cursor.onsuccess=()=>{const c=cursor.result;if(c){files.set(String(c.key),c.value);c.continue()}};t.oncomplete=()=>resolve({data,files});t.onerror=()=>reject(t.error)})}
 async function change(task:(data:Data,t:IDBTransaction)=>any){const connection=await db();return new Promise<any>((resolve,reject)=>{const t=connection.transaction(STORES,'readwrite'),state=t.objectStore('state'),r=state.get('book');let result:any,error:unknown;r.onsuccess=()=>{try{const d:Data=r.result||fresh();result=task(d,t);state.put(d,'book')}catch(e){error=e;t.abort()}};t.oncomplete=()=>{window.dispatchEvent(new Event('zhuzhang-data'));resolve(result)};t.onabort=()=>reject(error||Error(t.error?.name==='QuotaExceededError'?'浏览器存储空间不足，保存未完成。请先导出备份。':'保存未完成，请重试'));t.onerror=()=>{}})}
+function saveAttachment(d:Data,t:IDBTransaction,file:unknown,projectId:string,category:string){
+ if(!(file instanceof File)||file.size===0||file.size>10*1024*1024)throw Error('单个非空文件不能超过 10MB');
+ if(!file.name||file.name.length>200)throw Error('文件名过长，请缩短到 200 个字符以内');
+ if(!/\.(pdf|png|jpe?g|webp|docx?|xlsx?|txt|zip|ofd)$/i.test(file.name))throw Error('支持 PDF、图片、Word、Excel、TXT、ZIP、OFD');
+ if(!['合同协议','发票原件','竣工资料','现场照片','其他资料'].includes(category))throw Error('资料分类无效');
+ if(!d.projects.some(p=>p.id===projectId))throw Error('请选择已保存的工程');
+ if(d.documents.reduce((s,f)=>s+f.size,0)+file.size>LIMIT)throw Error('离线版原件总量上限 200MB，请先导出工程包');
+ const doc={id:crypto.randomUUID(),projectId,name:file.name,category,size:file.size,mime:file.type||'application/octet-stream',key:'',createdAt:new Date().toISOString()};
+ doc.key='files/'+doc.id;t.objectStore('files').put(file,doc.id);d.documents.unshift(doc);return doc;
+}
 export async function localApi(path:string,body?:any,method='POST'){
  try{
  if(path==='data'&&body===undefined)return await getData();
  if(path==='ocr')throw Error('离线版不连接发票识别服务，请上传原件并手动填写。');
- if(path==='upload'){const file=body.get('file'),projectId=String(body.get('projectId')||''),category=String(body.get('category')||'其他资料');if(!(file instanceof File)||file.size===0||file.size>10*1024*1024)throw Error('单个非空文件不能超过 10MB');if(!/\.(pdf|png|jpe?g|webp|docx?|xlsx?|txt|zip|ofd)$/i.test(file.name))throw Error('支持 PDF、图片、Word、Excel、TXT、ZIP、OFD');if(!['合同协议','发票原件','竣工资料','现场照片','其他资料'].includes(category))throw Error('资料分类无效');return await change((d,t)=>{if(!d.projects.some(p=>p.id===projectId))throw Error('请选择已保存的工程');if(d.documents.reduce((s,f)=>s+f.size,0)+file.size>LIMIT)throw Error('离线版原件总量上限 200MB，请先导出工程包并改用服务器版存放更多原件');const doc={id:crypto.randomUUID(),projectId,name:file.name,category,size:file.size,mime:file.type||'application/octet-stream',key:'',createdAt:new Date().toISOString()};doc.key='files/'+doc.id;t.objectStore('files').put(file,doc.id);d.documents.unshift(doc);return doc})}
+ if(path==='upload')return await change((d,t)=>saveAttachment(d,t,body.get('file'),String(body.get('projectId')||''),String(body.get('category')||'其他资料')));
+ if(path==='invoice-with-file'){
+  const record=JSON.parse(String(body.get('invoice')||'null')),id=String(body.get('id')||'');
+  if(!record||(method==='PATCH'&&!id))throw Error('发票信息不完整');
+  return await change((d,t)=>{const doc=saveAttachment(d,t,body.get('file'),record.projectId,'发票原件');return applyMutation(d,'invoices'+(id?'/'+id:''),{...record,fileId:doc.id},method)});
+ }
+
  return await change(d=>applyMutation(d,path,body,method));
  }catch(e:any){if(e?.issues)throw Error(e.issues.map((x:any)=>x.message).join('；'));throw e}
 }

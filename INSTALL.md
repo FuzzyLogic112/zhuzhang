@@ -1,13 +1,13 @@
-# 筑账 1.1.0 · 多端预览版
+# 筑账 1.1.1 · 多端预览版
 
 面向少量熟人试用的免服务器安装版。请先用测试项目验证本机的录入、文件导入和备份恢复，再录入正式资料。
 
 ## 下载与安装
 
-- Windows 10/11（64 位）：下载 `zhuzhang-1.1.0-win-x64.exe`，运行安装向导。
-- 安卓 8 或更新版本：下载 `zhuzhang-1.1.0-android.apk`，使用系统安装器安装。需要较新的 Android System WebView / Chrome。APK 使用项目专用证书签名，不是应用商店版本；仅在确认下载来自本仓库且文件校验一致后安装。
-- Mac Apple 芯片（M1/M2/M3/M4 等）：下载 `zhuzhang-1.1.0-mac-arm64.dmg`。
-- Mac Intel 芯片：下载 `zhuzhang-1.1.0-mac-x64.dmg`。打开 DMG 后将筑账拖入“应用程序”。
+- Windows 10/11（64 位）：下载 `zhuzhang-1.1.1-win-x64.exe`，运行安装向导。
+- 安卓 8 或更新版本：下载 `zhuzhang-1.1.1-android.apk`，使用系统安装器安装。需要较新的 Android System WebView / Chrome。APK 使用项目专用证书签名，不是应用商店版本；仅在确认下载来自本仓库且文件校验一致后安装。
+- Mac Apple 芯片（M1/M2/M3/M4 等）：下载 `zhuzhang-1.1.1-mac-arm64.dmg`。
+- Mac Intel 芯片：下载 `zhuzhang-1.1.1-mac-x64.dmg`。打开 DMG 后将筑账拖入“应用程序”。
 - Linux x64：Debian/Ubuntu 使用 `.deb`；其他兼容发行版可使用 `.AppImage`，需要授予该文件运行权限。桌面包依赖系统图形环境，不适用于无桌面的服务器。
 - iPhone/iPad：没有 IPA 安装包。用 Safari 打开 https://fuzzylogic112.github.io/zhuzhang/ ，通过“分享 → 添加到主屏幕”使用网页应用；首次联网打开并完成缓存后可以离线打开，仍需防止系统清理本地数据。
 
