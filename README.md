@@ -1,9 +1,11 @@
-# 筑账 · 免服务器版
+# 筑账 · 多端免服务器版
 
 给小包工头使用的工程资料、发票、质保金和尾款管理工具。适合道路、地坪、碎石、划线项目，以及少量熟人各自使用。
 
-本仓库包含完整前端源码和已经打包的单文件网页。不需要购买服务器、配置数据库、注册企业账号或填写 API 密钥。
+本仓库包含完整前端源码、单文件网页，以及安卓、Windows、macOS、Linux 应用构建配置。不需要购买服务器、配置数据库、注册企业账号或填写 API 密钥。
 
+- **多端下载：** https://fuzzylogic112.github.io/zhuzhang/downloads/
+- **安装与迁移：** [INSTALL.md](INSTALL.md)
 - **项目仓库：** https://github.com/FuzzyLogic112/zhuzhang
 - **网页地址：** https://fuzzylogic112.github.io/zhuzhang/
 - **免安装文件：** [`docs/index.html`](docs/index.html)，下载后用电脑 Edge 或 Chrome 普通窗口打开。浏览器对本地文件的存储支持可能不同，请先试建项目并关闭后重开确认。
@@ -87,8 +89,14 @@ npm run preview
 | `offline/storage.ts` | 浏览器存储与原件读写 |
 | `offline/mutations.ts` | 台账修改、重复发票和收款校验 |
 | `offline/exports.ts` | 备份、恢复、项目资料包和日历 |
-| `offline/test.mjs` | 14 项本地存储和业务集成检查 |
+| `offline/test.mjs` | 15 项本地存储和业务集成检查 |
 | `server/zip.ts` | ZIP 格式工具；不需要运行服务器 |
 | `docs/` | 可直接发布或下载的网页 |
 
 测试覆盖收款重试、并发超额收款拦截、备份校验、原件恢复、项目分享范围和日历提醒格式。Node.js 测试使用模拟 IndexedDB，不能替代每一种真实浏览器的兼容性检查。
+
+## 安装版构建
+
+桌面应用源码位于 `desktop/`，安卓源码位于 `android/`。`npm run build:apps` 生成本地页面并复制到各端。GitHub Actions 编译安装包；网页仍直接发布 `docs`。iPhone/iPad 目前提供主屏幕网页应用，没有 IPA。
+
+安卓签名私钥不在仓库中，未来覆盖升级需使用项目所有者保存的签名备份。没有这份私钥时，不要生成新证书后声称可无损覆盖升级。升级前请先导出账本备份。
