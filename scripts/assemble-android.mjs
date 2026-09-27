@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import {gunzipSync} from 'node:zlib';
+const version=JSON.parse(fs.readFileSync('package.json')).version;
+const folder=`installers/android-${version}`;
+const manifest=JSON.parse(fs.readFileSync(folder+'/manifest.json'));
+if(manifest.file!==`zhuzhang-${version}-android.apk`||!Array.isArray(manifest.chunks)||!manifest.chunks.length||manifest.chunks.some(n=>!/^\d{3}\.gzpart$/.test(n)))throw Error('Invalid Android release manifest');
+const archive=Buffer.concat(manifest.chunks.map(n=>fs.readFileSync(folder+'/'+n)));
+const apk=gunzipSync(archive,{maxOutputLength:100*1024*1024});
+if(apk.length!==manifest.size||crypto.createHash('sha256').update(apk).digest('hex')!==manifest.sha256)throw Error('Android installer checksum mismatch');
+fs.writeFileSync('installers/'+manifest.file,apk);
+console.log('Verified signed installer:',manifest.file,manifest.sha256);

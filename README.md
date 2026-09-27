@@ -102,3 +102,5 @@ npm run preview
 安卓签名私钥不在仓库中，未来覆盖升级需使用项目所有者保存的签名备份。没有这份私钥时，不要生成新证书后声称可无损覆盖升级。升级前请先导出账本备份。
 
 识别来源：安卓使用内置 ML Kit 中文模型；电脑使用 Tesseract.js 与 tessdata_fast 简体中文 / 英文模型。模型校验值锁定在 `scripts/prepare-ocr.mjs`，许可证随安装包附带。
+
+安卓签名安装包在仓库中以压缩分片保存，运行 `node scripts/assemble-android.mjs` 可还原并校验。使用者直接下载 Release 中完整 APK，无需自行合并。

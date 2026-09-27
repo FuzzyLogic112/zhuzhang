@@ -23,3 +23,5 @@ android/local.properties
 
 desktop/ocr/*.traineddata
 docs/pdf/
+
+/installers/zhuzhang-1.2.0-android.apk
