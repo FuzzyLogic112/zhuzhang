@@ -1,7 +1,7 @@
 {
   "name": "zhuzhang-desktop",
   "productName": "筑账",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "工程资料、发票、质保金和尾款本地管理工具",
   "author": "FuzzyLogic112",
   "private": true,
@@ -23,7 +23,9 @@
     },
     "files": [
       "main.cjs",
-      "web/index.html",
+      "preload.cjs",
+      "recognize.cjs",
+      "web/**",
       "icon.png",
       "package.json"
     ],
@@ -56,7 +58,24 @@
       "category": "Office",
       "maintainer": "FuzzyLogic112 <136941028+FuzzyLogic112@users.noreply.github.com>",
       "artifactName": "zhuzhang-${version}-linux-x64.${ext}"
-    }
+    },
+    "asarUnpack": [
+      "node_modules/tesseract.js/**",
+      "node_modules/tesseract.js-core/**"
+    ],
+    "extraResources": [
+      {
+        "from": "ocr",
+        "to": "ocr",
+        "filter": [
+          "*.traineddata",
+          "LICENSE"
+        ]
+      }
+    ]
   },
-  "homepage": "https://fuzzylogic112.github.io/zhuzhang/"
+  "homepage": "https://fuzzylogic112.github.io/zhuzhang/",
+  "dependencies": {
+    "tesseract.js": "7.0.0"
+  }
 }

@@ -1,5 +1,5 @@
-type NativeFiles = { begin(name:string,mime:string,size:number):string; write(id:string,chunk:string):boolean; finish(id:string):boolean; abort(id:string):void };
-export async function saveNative(blob:Blob,name:string):Promise<boolean> {
+type NativeFiles = { begin(name:string,mime:string,size:number):string; write(id:string,chunk:string):boolean; finish(id:string):boolean; share?(id:string):boolean; abort(id:string):void };
+export async function saveNative(blob:Blob,name:string,share=false):Promise<boolean> {
   const bridge=(window as unknown as {ZhuzhangNative?:NativeFiles}).ZhuzhangNative;
   if(!bridge)return false;
   const id=bridge.begin(name,blob.type||'application/octet-stream',blob.size);
@@ -14,7 +14,7 @@ export async function saveNative(blob:Blob,name:string):Promise<boolean> {
     await new Promise<void>((resolve,reject)=>{
       handler=((event:CustomEvent)=>{if(event.detail?.id!==id)return;window.removeEventListener('zhuzhang-native-save',handler!);event.detail.error?reject(Error(event.detail.error)):resolve()}) as EventListener;
       window.addEventListener('zhuzhang-native-save',handler);
-      if(!bridge.finish(id))reject(Error('无法开始保存文件，请重试'));
+      if(!(share&&bridge.share?bridge.share(id):bridge.finish(id)))reject(Error('无法开始保存文件，请重试'));
     });
     return true;
   } catch(error) { bridge.abort(id);throw error; }

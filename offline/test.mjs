@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {indexedDB} from 'fake-indexeddb';
 import fs from 'node:fs';
-import {calculateEstimate,csv,saveBlob,saveNative,localApi,getData,snapshot,getFile,exportBackup,prepareRestore,restoreBackup,readBackupZip,exportProject,calendarText,validateBackup,defaultEstimate,today} from '../test-build/api.js';
+import {parseInvoiceText,reminderPayload,recognizeInvoice,calculateEstimate,csv,saveBlob,saveNative,localApi,getData,snapshot,getFile,exportBackup,prepareRestore,restoreBackup,readBackupZip,exportProject,calendarText,validateBackup,defaultEstimate,today} from '../test-build/api.js';
 globalThis.indexedDB=indexedDB;globalThis.window=new EventTarget();
 const downloads=[];globalThis.document={createElement(){return{click(){downloads.at(-1).name=this.download}}}};URL.createObjectURL=blob=>{downloads.push({blob});return'blob:test-download'};URL.revokeObjectURL=()=>{};
 const later=globalThis.setTimeout;globalThis.setTimeout=(...args)=>{const t=later(...args);t.unref();return t};
@@ -62,5 +62,39 @@ await check('CSV preserves long identifiers and escapes formulas',()=>{
 await check('native cancellation propagates without browser fallback',async()=>{
  const before=downloads.length;window.ZhuzhangNative={begin(){return 'cancel-test'},write(){return true},finish(id){queueMicrotask(()=>window.dispatchEvent(new CustomEvent('zhuzhang-native-save',{detail:{id,error:'已取消保存'}})));return true},abort(){}};
  await assert.rejects(saveBlob(new Blob(['data']),'总览.csv'),/取消/);assert.equal(downloads.length,before);delete window.ZhuzhangNative;
+});
+
+await check('Chinese invoice extraction uses labelled fields',()=>{
+ const r=parseInvoiceText(fs.readFileSync('test-fixtures/invoice-ocr.txt','utf8'));assert.equal(r.number,'20260927000000000123');assert.equal(r.amount,452000);assert.equal(r.tax,52000);assert.equal(r.date,'2026-09-27');assert.equal(r.seller,'测试建材有限公司');
+});
+await check('unreliable OCR leaves values blank and does not invent fields',()=>{
+ const r=parseInvoiceText(`统一社会信用代码:123456789012345678
+开票日期:2026年2月30日
+数量:100
+金额:123.00`);assert.equal(r.number,'');assert.equal(r.date,'');assert.equal(r.amount,null);assert.equal(r.tax,null);assert.ok(r.warnings.length>1);
+ const invalid=parseInvoiceText(`价税合计(小写):100.00
+税额:200.00`);assert.equal(invalid.tax,null);
+});
+await check('OCR handles grouping commas fullwidth characters and net-plus-tax',()=>{
+ const r=parseInvoiceText(`发票号码：２０２６０９２７０００００００００１２３
+开票日期：2026/9/27
+合计:4,000.00 520.00`);assert.equal(r.number,'20260927000000000123');assert.equal(r.amount,452000);assert.equal(r.tax,52000);
+});
+await check('receipt cancellation restores balance once and survives backup',async()=>{
+ const before=await getData(),f=before.followups.find(f=>f.method==='收款');const old=before.receivables.find(r=>r.id===f.receivableId).received;
+ await assert.rejects(localApi('followups/'+f.id,{reason:''},'DELETE'));
+ await localApi('followups/'+f.id,{reason:'测试误记'},'DELETE');await localApi('followups/'+f.id,{reason:'重试'},'DELETE');
+ const after=await getData();assert.equal(after.receivables.find(r=>r.id===f.receivableId).received,old-f.amount);assert.equal(after.followups.find(x=>x.id===f.id).voidReason,'测试误记');
+ await exportBackup();const recovered=await prepareRestore(new File([downloads.at(-1).blob],'完整备份.zip'));assert.ok(recovered.data.followups.find(x=>x.id===f.id).voidedAt);
+ await exportProject(f.projectId);const shared=readBackupZip(await downloads.at(-1).blob.arrayBuffer());assert.match(new TextDecoder().decode(shared.get('催收记录.csv')),/测试误记/);
+});
+await check('native reminders remove settled amounts and use latest followup',async()=>{
+ const d=structuredClone(await getData());d.receivables[0].received=d.receivables[0].amount;assert.ok(!reminderPayload(d).some(n=>n.id==='due-'+d.receivables[0].id));
+ d.receivables[0].received=0;const notice=reminderPayload(d).find(n=>n.id==='due-'+d.receivables[0].id);assert.equal(notice.start,'2030-08-28');
+ d.projects[0].invoiceTarget=0;assert.ok(!reminderPayload(d).some(n=>n.id==='invoice-'+d.projects[0].id));
+});
+await check('Android OCR bridge returns fields without saving to the ledger',async()=>{
+ const before=(await getData()).invoices.length;window.ZhuzhangOcr={begin(){return 'ocr-test'},write(){return true},recognize(id){queueMicrotask(()=>window.dispatchEvent(new CustomEvent('zhuzhang-ocr',{detail:{id,text:'发票号码:20260927000000000123\n价税合计(小写):100.00',error:''}})));return true},abort(){}};
+ const r=await recognizeInvoice(new File(['fake-pixels'],'test.png',{type:'image/png'}));assert.equal(r.amount,10000);assert.equal((await getData()).invoices.length,before);delete window.ZhuzhangOcr;
 });
 fs.writeFileSync('test-build/verification.json',JSON.stringify({date:today(),checks:passed,result:'passed',environment:'Node.js with fake-indexeddb'},null,2));console.log('TOTAL '+passed+' integration checks passed.');

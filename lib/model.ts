@@ -1,7 +1,7 @@
 export type Project = {id:string; name:string; code:string; client:string; manager:string; phone:string; location:string; category:string; status:string; contract:number; invoiceTarget:number; invoiceDue:string; completedAt:string; createdAt:string; note:string};
 export type Invoice = {id:string; projectId:string; number:string; code:string; seller:string; buyer:string; amount:number; tax:number; date:string; category:string; status:string; fileId:string; createdAt:string};
 export type Receivable = {id:string; projectId:string; type:string; amount:number; received:number; due:string; reminderDays:number; contact:string; note:string; createdAt:string};
-export type Followup = {id:string; projectId:string; receivableId:string; date:string; method:string; content:string; nextDate:string; amount:number; createdAt:string};
+export type Followup = {voidedAt?:string;voidReason?:string;id:string; projectId:string; receivableId:string; date:string; method:string; content:string; nextDate:string; amount:number; createdAt:string};
 export type DocumentRecord = {id:string; projectId:string; name:string; category:string; size:number; mime:string; key:string; createdAt:string};
 export type Share = {id:string; projectId:string; label:string; expires:string; createdAt:string};
 export type Settings = {company:string; reminderDays:number; invoiceThreshold:number; wecomEnabled:boolean;emailEnabled:boolean;reminderEmail:string};

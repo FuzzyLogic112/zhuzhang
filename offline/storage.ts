@@ -1,15 +1,17 @@
 import {emptyData,type Data} from '../lib/model';
 import {applyMutation} from './mutations';
+import {hasImageOcr} from './ocr';
+import {syncReminders} from './reminders';
 import {saveNative} from './native-export';
 const STORES=['state','files'];const LIMIT=200*1024*1024;
 let opening:Promise<IDBDatabase>|undefined;
 function db(){if(!opening)opening=new Promise((resolve,reject)=>{try{const r=indexedDB.open('zhuzhang-offline-v1',1);r.onupgradeneeded=()=>{for(const name of STORES)if(!r.result.objectStoreNames.contains(name))r.result.createObjectStore(name)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(Error('此浏览器无法保存本地账本，请用电脑 Edge 或 Chrome 普通窗口打开。'))}catch{reject(Error('本地存储不可用，请用电脑 Edge 或 Chrome 普通窗口打开。'))}});return opening}
 const fresh=()=>({...structuredClone(emptyData),settings:{...emptyData.settings,company:'我的离线账本'}});
-const view=(d:Data)=>({...d,authenticated:true,services:{ocr:false,wecom:false,email:false,scheduled:false}});
+const view=(d:Data)=>({...d,authenticated:true,services:{ocr:hasImageOcr(),wecom:false,email:false,scheduled:false}});
 export async function getData(){const connection=await db();return new Promise<Data>((resolve,reject)=>{const t=connection.transaction('state'),r=t.objectStore('state').get('book');r.onsuccess=()=>resolve(view(r.result||fresh()));r.onerror=()=>reject(r.error)})}
 export async function getFile(id:string){const connection=await db();return new Promise<Blob>((resolve,reject)=>{const t=connection.transaction('files'),r=t.objectStore('files').get(id);r.onsuccess=()=>r.result?resolve(r.result):reject(Error('原件不存在，请从完整备份恢复'));r.onerror=()=>reject(r.error)})}
 export async function snapshot(){const connection=await db();return new Promise<{data:Data;files:Map<string,Blob>}>((resolve,reject)=>{const t=connection.transaction(STORES),r=t.objectStore('state').get('book'),files=new Map<string,Blob>();let data:Data=fresh();r.onsuccess=()=>{data=r.result||fresh()};const cursor=t.objectStore('files').openCursor();cursor.onsuccess=()=>{const c=cursor.result;if(c){files.set(String(c.key),c.value);c.continue()}};t.oncomplete=()=>resolve({data,files});t.onerror=()=>reject(t.error)})}
-async function change(task:(data:Data,t:IDBTransaction)=>any){const connection=await db();return new Promise<any>((resolve,reject)=>{const t=connection.transaction(STORES,'readwrite'),state=t.objectStore('state'),r=state.get('book');let result:any,error:unknown;r.onsuccess=()=>{try{const d:Data=r.result||fresh();result=task(d,t);state.put(d,'book')}catch(e){error=e;t.abort()}};t.oncomplete=()=>{window.dispatchEvent(new Event('zhuzhang-data'));resolve(result)};t.onabort=()=>reject(error||Error(t.error?.name==='QuotaExceededError'?'浏览器存储空间不足，保存未完成。请先导出备份。':'保存未完成，请重试'));t.onerror=()=>{}})}
+async function change(task:(data:Data,t:IDBTransaction)=>any){const connection=await db();return new Promise<any>((resolve,reject)=>{const t=connection.transaction(STORES,'readwrite'),state=t.objectStore('state'),r=state.get('book');let result:any,error:unknown;r.onsuccess=()=>{try{const d:Data=r.result||fresh();result=task(d,t);state.put(d,'book')}catch(e){error=e;t.abort()}};t.oncomplete=()=>{window.dispatchEvent(new Event('zhuzhang-data'));void getData().then(syncReminders).catch(()=>{});resolve(result)};t.onabort=()=>reject(error||Error(t.error?.name==='QuotaExceededError'?'浏览器存储空间不足，保存未完成。请先导出备份。':'保存未完成，请重试'));t.onerror=()=>{}})}
 function saveAttachment(d:Data,t:IDBTransaction,file:unknown,projectId:string,category:string){
  if(!(file instanceof File)||file.size===0||file.size>10*1024*1024)throw Error('单个非空文件不能超过 10MB');
  if(!file.name||file.name.length>200)throw Error('文件名过长，请缩短到 200 个字符以内');
@@ -35,5 +37,5 @@ export async function localApi(path:string,body?:any,method='POST'){
  }catch(e:any){if(e?.issues)throw Error(e.issues.map((x:any)=>x.message).join('；'));throw e}
 }
 export async function replaceBook(data:Data,files:Map<string,Blob>){if(data.documents.reduce((s,f)=>s+f.size,0)>LIMIT)throw Error('备份原件超过离线版 200MB 上限');return change((d,t)=>{for(const key of Object.keys(d))delete(d as any)[key];Object.assign(d,data);const store=t.objectStore('files');store.clear();for(const doc of data.documents){const file=files.get(doc.id);if(!file||file.size!==doc.size)throw Error('备份中的资料原件不完整');store.put(file,doc.id)}return true})}
-export async function saveBlob(blob:Blob,name:string){if(await saveNative(blob,name))return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000)}
+export async function saveBlob(blob:Blob,name:string,share=false){if(await saveNative(blob,name,share))return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000)}
 export async function downloadFile(id:string){const d=await getData(),doc=d.documents.find(f=>f.id===id);if(!doc)throw Error('资料不存在');await saveBlob(await getFile(id),doc.name)}

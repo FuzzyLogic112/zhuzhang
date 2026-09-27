@@ -17,7 +17,9 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final String HOME = "https://appassets.androidplatform.net/assets/index.html";
-    private static final int OPEN_FILE = 10, SAVE_FILE = 11;
+    private static final int OPEN_FILE = 10, SAVE_FILE = 11, CAMERA = 12;
+    private Uri cameraUri;
+    private InvoiceOcr ocr;
     private WebView web;
     private ValueCallback<Uri[]> chooser;
     private final NativeFiles files = new NativeFiles();
@@ -26,6 +28,7 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         File[] abandoned = getCacheDir().listFiles((dir, name) -> name.startsWith("export-"));
         if (abandoned != null) for (File file : abandoned) file.delete();
+        for(String cacheName:new String[]{"camera","shared"}){File dir=new File(getCacheDir(),cacheName);File[] old=dir.listFiles();if(old!=null)for(File f:old)if(System.currentTimeMillis()-f.lastModified()>86400000L)f.delete();}
         web = new WebView(this);
         setContentView(web);
         web.setBackgroundColor(0xfff5f7f8);
@@ -43,17 +46,19 @@ public class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSupportMultipleWindows(false);
         WebViewAssetLoader assets = new WebViewAssetLoader.Builder().addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this)).build();
-        web.setWebViewClient(new WebViewClient() {
-            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                if (HOME.equals(request.getUrl().toString())) return assets.shouldInterceptRequest(request.getUrl());
-                return new WebResourceResponse("text/plain", "UTF-8", 403, "Blocked", java.util.Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
-            }
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return !HOME.equals(request.getUrl().toString()); }
-        });
         web.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (chooser != null) chooser.onReceiveValue(null);
                 chooser = callback;
+                if (params.isCaptureEnabled()) {
+                    try {
+                        File folder=new File(getCacheDir(),"camera");folder.mkdirs();
+                        File photo=File.createTempFile("invoice-",".jpg",folder);cameraUri=androidx.core.content.FileProvider.getUriForFile(MainActivity.this,getPackageName()+".files",photo);
+                        Intent capture=new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT,cameraUri).addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION|Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivityForResult(capture,CAMERA);
+                    } catch(Exception e){chooser.onReceiveValue(null);chooser=null;Toast.makeText(MainActivity.this,"无法打开相机，请使用相册选择",Toast.LENGTH_LONG).show();}
+                    return true;
+                }
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
                 intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
                 try { startActivityForResult(intent, OPEN_FILE); }
@@ -63,9 +68,24 @@ public class MainActivity extends Activity {
             @Override public void onPermissionRequest(PermissionRequest request) { request.deny(); }
         });
         web.addJavascriptInterface(files, "ZhuzhangNative");
+        ocr = new InvoiceOcr((id,text,error)->runOnUiThread(()->{if(web!=null)web.evaluateJavascript("window.dispatchEvent(new CustomEvent('zhuzhang-ocr',{detail:{id:"+JSONObject.quote(id)+",text:"+JSONObject.quote(text)+",error:"+JSONObject.quote(error)+"}}))",null);}));
+        web.addJavascriptInterface(ocr,"ZhuzhangOcr");
+        ReminderReceiver.schedule(this);
+        web.setWebViewClient(new LocalClient(assets));
         web.loadUrl(HOME);
     }
 
+    private final class LocalClient extends WebViewClient {
+        private final WebViewAssetLoader assets;
+        LocalClient(WebViewAssetLoader assets){this.assets=assets;}
+        @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){
+            Uri u=request.getUrl();if("https".equals(u.getScheme())&&"appassets.androidplatform.net".equals(u.getHost())&&(HOME.equals(u.toString())||u.getPath().startsWith("/assets/pdf/")))return assets.shouldInterceptRequest(u);
+            return new WebResourceResponse("text/plain","UTF-8",403,"Blocked",java.util.Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));
+        }
+        @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){return !HOME.equals(request.getUrl().toString());}
+        @Override public void onPageFinished(WebView view,String url){if(getIntent().getBooleanExtra("openReminders",false)){getIntent().removeExtra("openReminders");view.evaluateJavascript("window.dispatchEvent(new Event('zhuzhang-open-reminders'))",null);}}
+    }
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("openReminders",false)&&web!=null)web.evaluateJavascript("window.dispatchEvent(new Event('zhuzhang-open-reminders'))",null);}
     private void complete(String id, String error) {
         runOnUiThread(() -> {
             if (web != null) web.evaluateJavascript("window.dispatchEvent(new CustomEvent('zhuzhang-native-save',{detail:{id:" + JSONObject.quote(id) + ",error:" + JSONObject.quote(error) + "}}))", null);
@@ -73,6 +93,12 @@ public class MainActivity extends Activity {
     }
 
     public class NativeFiles {
+        @JavascriptInterface public boolean syncReminders(String json){try{ReminderReceiver.sync(MainActivity.this,json);return true;}catch(Exception e){return false;}}
+        @JavascriptInterface public String reminderStatus(){return "{\"enabled\":"+ReminderReceiver.prefs(MainActivity.this).getBoolean("enabled",false)+",\"allowed\":"+ReminderReceiver.allowed(MainActivity.this)+"}";}
+        @JavascriptInterface public void enableReminders(boolean enabled){runOnUiThread(()->{ReminderReceiver.prefs(MainActivity.this).edit().putBoolean("enabled",enabled).apply();if(enabled&&Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},33);ReminderReceiver.schedule(MainActivity.this);if(!enabled)getSystemService(android.app.NotificationManager.class).cancel(ReminderReceiver.NOTICE);});}
+        @JavascriptInterface public void notificationSettings(){runOnUiThread(()->startActivity(new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName())));}
+        @JavascriptInterface public void testNotification(){runOnUiThread(()->ReminderReceiver.show(MainActivity.this,true));}
+
         private String token, name, mime;
         private long expected, written;
         private File file;
@@ -111,6 +137,14 @@ public class MainActivity extends Activity {
             });
             return true;
         }
+        @JavascriptInterface public synchronized boolean share(String id) {
+            if(!id.equals(token)||pending||stream==null||written!=expected)return false;
+            try{stream.close();stream=null;pending=true;
+                File folder=new File(getCacheDir(),"shared");folder.mkdirs();File shared=new File(folder,name);try(InputStream input=new FileInputStream(file);OutputStream out=new FileOutputStream(shared)){byte[] b=new byte[65536];int n;while((n=input.read(b))!=-1)out.write(b,0,n);}
+                Uri uri=androidx.core.content.FileProvider.getUriForFile(MainActivity.this,getPackageName()+".files",shared);String type=mime;
+                runOnUiThread(()->{try{Intent send=new Intent(Intent.ACTION_SEND).setType(type).putExtra(Intent.EXTRA_STREAM,uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(Intent.createChooser(send,"分享筑账文件"));complete(id,"");}catch(Exception e){complete(id,"没有可用的分享应用，请改用保存文件");}finally{cleanup();}});return true;
+            }catch(Exception e){cleanup();return false;}
+        }
         @JavascriptInterface public synchronized void abort(String id) { if (id.equals(token) && !pending) cleanup(); }
         private synchronized void cleanup() {
             try { if (stream != null) stream.close(); } catch (Exception ignored) {}
@@ -146,6 +180,7 @@ public class MainActivity extends Activity {
             }
             chooser.onReceiveValue(selected); chooser = null;
         }
+        if(request==CAMERA&&chooser!=null){chooser.onReceiveValue(result==RESULT_OK&&cameraUri!=null?new Uri[]{cameraUri}:null);chooser=null;cameraUri=null;}
         if (request == SAVE_FILE) files.save(uri);
     }
     @Override public void onBackPressed() {
@@ -153,7 +188,8 @@ public class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         if (chooser != null) chooser.onReceiveValue(null);
-        if (web != null) { web.removeJavascriptInterface("ZhuzhangNative"); web.destroy(); web = null; }
+        if(ocr!=null)ocr.close();
+        if (web != null) { web.removeJavascriptInterface("ZhuzhangOcr");web.removeJavascriptInterface("ZhuzhangNative"); web.destroy(); web = null; }
         super.onDestroy();
     }
 }
