@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {recognize}=require('../desktop/recognize.cjs');
 (async()=>{
+ await assert.rejects(recognize(new Uint8Array([1,2,3,4]),path.resolve('desktop/ocr')));
  const text=await recognize(new Uint8Array(fs.readFileSync('test-fixtures/invoice-ocr.png')),path.resolve('desktop/ocr'));
  const {parseInvoiceText}=await import('../test-build/api.js');const fields=parseInvoiceText(text);
  assert.equal(fields.number,'20260927000000000123');assert.equal(fields.amount,452000);assert.equal(fields.tax,52000);assert.equal(fields.date,'2026-09-27');

@@ -12,3 +12,4 @@ export {csv} from '../server/zip';
 export {parseInvoiceText} from './invoice-parser';
 export {reminderPayload} from './reminders';
 export {recognizeInvoice} from './ocr';
+export {readPdf} from './pdf';

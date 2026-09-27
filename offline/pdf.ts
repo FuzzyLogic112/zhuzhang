@@ -1,4 +1,4 @@
-import * as pdfjs from 'pdfjs-dist';
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 export async function readPdf(file:Blob,render=false){
  pdfjs.GlobalWorkerOptions.workerSrc=new URL('./pdf/pdf.worker.min.mjs',location.href).href;
  const task=pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),maxImageSize:12000000,useSystemFonts:true,standardFontDataUrl:new URL('./pdf/standard_fonts/',location.href).href,wasmUrl:new URL('./pdf/wasm/',location.href).href});

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {createCanvas,DOMMatrix,ImageData,Path2D} from '@napi-rs/canvas';
+Object.assign(globalThis,{DOMMatrix,ImageData,Path2D,location:{href:pathToFileURL(path.resolve('docs/index.html')).href},window:{requestAnimationFrame:fn=>setTimeout(fn,0),cancelAnimationFrame:id=>clearTimeout(id)}});
+globalThis.document={createElement(tag){assert.equal(tag,'canvas');const canvas=createCanvas(1,1);canvas.toBlob=callback=>callback(new Blob([canvas.toBuffer('image/png')],{type:'image/png'}));return canvas}};
+const {readPdf,recognizeInvoice}=await import('../test-build/api.js');
+const file=new File([fs.readFileSync('test-fixtures/invoice-text.pdf')],'invoice.pdf',{type:'application/pdf'});
+const pdf=await readPdf(file,true);assert.equal(pdf.pages,1);assert.match(pdf.text,/测试建材/);assert.ok(pdf.image.size>10000);
+const result=await recognizeInvoice(file);assert.equal(result.number,'20260927000000000123');assert.equal(result.amount,452000);assert.equal(result.tax,52000);
+await assert.rejects(readPdf(new Blob(['not a pdf'])));
+console.log('PASS real PDF text extraction, first-page rendering, invoice parsing and corrupt-file rejection');
