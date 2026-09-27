@@ -41,4 +41,11 @@ public class NativeFeatureTest {
  @Test public void malformedOcrPayloadIsRejected() {
   InvoiceOcr ocr=new InvoiceOcr((id,text,error)->{});assertEquals("",ocr.begin(0));assertEquals("",ocr.begin(11000000));String id=ocr.begin(10);assertFalse(ocr.write("bad", "YWJj"));assertFalse(ocr.recognize(id));ocr.abort(id);assertFalse(ocr.begin(1).isEmpty());ocr.close();
  }
+ @Test public void bundledPdfResourcesUseJavaScriptMimeAndExternalRequestsAreBlocked() throws Exception {
+  Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();
+  androidx.webkit.WebViewAssetLoader loader=new androidx.webkit.WebViewAssetLoader.Builder().addPathHandler("/assets/",new androidx.webkit.WebViewAssetLoader.AssetsPathHandler(c)).build();
+  android.webkit.WebResourceResponse worker=MainActivity.assetResponse(loader,android.net.Uri.parse("https://appassets.androidplatform.net/assets/pdf/pdf.worker.min.mjs"));
+  assertEquals("text/javascript",worker.getMimeType());try(InputStream stream=worker.getData()){assertTrue(stream.read()!=-1);}
+  assertEquals(403,MainActivity.assetResponse(loader,android.net.Uri.parse("https://example.com/image.png")).getStatusCode());
+ }
 }

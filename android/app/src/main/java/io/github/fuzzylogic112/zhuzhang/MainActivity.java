@@ -75,12 +75,20 @@ public class MainActivity extends Activity {
         web.loadUrl(HOME);
     }
 
+    static WebResourceResponse assetResponse(WebViewAssetLoader assets,Uri u) {
+        if("https".equals(u.getScheme())&&"appassets.androidplatform.net".equals(u.getHost())&&(HOME.equals(u.toString())||u.getPath().startsWith("/assets/pdf/"))){
+            WebResourceResponse response=assets.shouldInterceptRequest(u);
+            if(response!=null&&u.getPath().endsWith(".mjs"))response.setMimeType("text/javascript");
+            if(response!=null&&u.getPath().endsWith(".wasm"))response.setMimeType("application/wasm");
+            if(response!=null)return response;
+        }
+        return new WebResourceResponse("text/plain","UTF-8",403,"Blocked",java.util.Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));
+    }
     private final class LocalClient extends WebViewClient {
         private final WebViewAssetLoader assets;
         LocalClient(WebViewAssetLoader assets){this.assets=assets;}
         @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){
-            Uri u=request.getUrl();if("https".equals(u.getScheme())&&"appassets.androidplatform.net".equals(u.getHost())&&(HOME.equals(u.toString())||u.getPath().startsWith("/assets/pdf/")))return assets.shouldInterceptRequest(u);
-            return new WebResourceResponse("text/plain","UTF-8",403,"Blocked",java.util.Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));
+            return assetResponse(assets,request.getUrl());
         }
         @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){return !HOME.equals(request.getUrl().toString());}
         @Override public void onPageFinished(WebView view,String url){if(getIntent().getBooleanExtra("openReminders",false)){getIntent().removeExtra("openReminders");view.evaluateJavascript("window.dispatchEvent(new Event('zhuzhang-open-reminders'))",null);}}
