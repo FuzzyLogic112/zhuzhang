@@ -14,6 +14,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(AndroidJUnit4.class)
 public class NativeFeatureTest {
+ private static void awaitNotificationCount(NotificationManager nm,int count) {
+  long deadline=android.os.SystemClock.uptimeMillis()+5000;
+  while(nm.getActiveNotifications().length!=count&&android.os.SystemClock.uptimeMillis()<deadline)android.os.SystemClock.sleep(50);
+  assertEquals(count,nm.getActiveNotifications().length);
+ }
  @Test public void bundledChineseOcrWorksWithoutInternetPermission() throws Exception {
   Context target=InstrumentationRegistry.getInstrumentation().getTargetContext();
   assertEquals(PackageManager.PERMISSION_DENIED,target.checkSelfPermission("android.permission.INTERNET"));
@@ -29,8 +34,8 @@ public class NativeFeatureTest {
   ReminderReceiver.prefs(c).edit().putBoolean("enabled",true).remove("sent-day").commit();
   ReminderReceiver.sync(c,"[{\"id\":\"test\",\"title\":\"测试质保金\",\"body\":\"待收 7000 元\",\"start\":\"2020-01-01\"}]");
   new ReminderReceiver().onReceive(c,new Intent("io.github.fuzzylogic112.zhuzhang.REMIND"));
-  NotificationManager nm=c.getSystemService(NotificationManager.class);assertEquals(1,nm.getActiveNotifications().length);
-  ReminderReceiver.sync(c,"[]");assertEquals(0,nm.getActiveNotifications().length);
+  NotificationManager nm=c.getSystemService(NotificationManager.class);awaitNotificationCount(nm,1);
+  ReminderReceiver.sync(c,"[]");awaitNotificationCount(nm,0);
   ReminderReceiver.prefs(c).edit().putBoolean("enabled",false).commit();ReminderReceiver.schedule(c);
  }
  @Test public void malformedOcrPayloadIsRejected() {
