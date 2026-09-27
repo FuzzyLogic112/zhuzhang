@@ -1,7 +1,7 @@
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 export async function readPdf(file:Blob,render=false){
  pdfjs.GlobalWorkerOptions.workerSrc=new URL('./pdf/pdf.worker.min.mjs',location.href).href;
- const task=pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),maxImageSize:12000000,useSystemFonts:true,standardFontDataUrl:new URL('./pdf/standard_fonts/',location.href).href,wasmUrl:new URL('./pdf/wasm/',location.href).href});
+ const task=pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),maxImageSize:12000000,useSystemFonts:true,cMapPacked:true,cMapUrl:new URL('./pdf/cmaps/',location.href).href,standardFontDataUrl:new URL('./pdf/standard_fonts/',location.href).href,wasmUrl:new URL('./pdf/wasm/',location.href).href});
  try{const doc=await task.promise,page=await doc.getPage(1),content=await page.getTextContent();let text='',lastY:number|undefined;
  for(const item of content.items){if(!('str'in item))continue;const y=item.transform[5];if(lastY!==undefined&&Math.abs(y-lastY)>4)text+='\n';text+=item.str+' ';lastY=y;if(item.hasEOL)text+='\n'}
  let image:Blob|undefined;

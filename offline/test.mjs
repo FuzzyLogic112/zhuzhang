@@ -97,4 +97,12 @@ await check('Android OCR bridge returns fields without saving to the ledger',asy
  const before=(await getData()).invoices.length;window.ZhuzhangOcr={begin(){return 'ocr-test'},write(){return true},recognize(id){queueMicrotask(()=>window.dispatchEvent(new CustomEvent('zhuzhang-ocr',{detail:{id,text:'发票号码:20260927000000000123\n价税合计(小写):100.00',error:''}})));return true},abort(){}};
  const r=await recognizeInvoice(new File(['fake-pixels'],'test.png',{type:'image/png'}));assert.equal(r.amount,10000);assert.equal((await getData()).invoices.length,before);delete window.ZhuzhangOcr;
 });
+await check('Android sharing uses the native share route and reports failures',async()=>{
+ let shared=false,aborted=false;window.ZhuzhangNative={begin(){return 'share-test'},write(){return true},finish(){throw Error('must use share')},share(id){shared=true;queueMicrotask(()=>window.dispatchEvent(new CustomEvent('zhuzhang-native-save',{detail:{id,error:''}})));return true},abort(){aborted=true}};
+ assert.equal(await saveNative(new Blob(['project contents']),'project.zip',true),true);assert.equal(shared,true);assert.equal(aborted,false);
+ window.ZhuzhangNative.share=()=>false;await assert.rejects(saveNative(new Blob(['project contents']),'project.zip',true));assert.equal(aborted,true);delete window.ZhuzhangNative;
+});
+await check('OCR rejects malformed monetary precision instead of silently truncating',()=>{
+ assert.equal(parseInvoiceText('价税合计:123.456').amount,null);assert.equal(parseInvoiceText('价税合计:1234567890123456').amount,null);assert.equal(parseInvoiceText('价税合计:12,34.56').amount,null);
+});
 fs.writeFileSync('test-build/verification.json',JSON.stringify({date:today(),checks:passed,result:'passed',environment:'Node.js with fake-indexeddb'},null,2));console.log('TOTAL '+passed+' integration checks passed.');
